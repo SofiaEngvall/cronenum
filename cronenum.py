@@ -18,7 +18,7 @@ Please report errors <3
 Author: Sofia Engvall, FixIt42
 License: MIT
 Repository: https://github.com/SofiaEngvall/cronenum
-Version: 0.1
+Version: 0.2
 
 Usage:
     python cronenum.py
@@ -26,6 +26,7 @@ Usage:
 
 import os
 import subprocess
+import argparse
 
 # ANSI escape codes for coloring
 COLOR_RESET = "\033[0m"
@@ -112,9 +113,10 @@ def find_system_cron_jobs():
                                     cron_contents = cron_file.read()
                                     print(
                                         f"{COLOR_FILENAME}File: {path}{filename}{COLOR_RESET}\n")
-                                    print(cron_contents)
-                                    print(f"{COLOR_YELLOW}" +
-                                          "=" * 80 + f"{COLOR_RESET}\n")
+                                    if show_files:
+                                        print(cron_contents)
+                                        print(f"{COLOR_YELLOW}" +
+                                              "=" * 80 + f"{COLOR_RESET}\n")
                             except Exception as e:
                                 print(f"Error reading {filepath}: {e}\n")
                 elif os.path.isfile(path):
@@ -140,6 +142,17 @@ if __name__ == "__main__":
     if os.name != 'posix':
         print("This script is intended for Linux.")
         exit(1)
+
+    # parse arguments
+    parser = argparse.ArgumentParser(
+        description="A tool to enumerate cron jobs")
+    parser.add_argument(
+        "-f", "--files", help="Show contents of files in cron directories", action="store_true")
+#    parser.add_argument(
+#        "-l", "--lines", help="The maximum number of lines to show", type=int, default=-1)
+    args = parser.parse_args()
+    show_files = args.files
+    # exit(0)
 
     # get user list
     users = find_users()
