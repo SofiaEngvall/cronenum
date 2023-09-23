@@ -16,7 +16,7 @@ Please report errors <3
 Author: Sofia Engvall, FixIt42
 License: MIT
 Repository: https://github.com/SofiaEngvall/cronenum
-Version: 0.3
+Version: 0.4
 
 Usage:
     python cronenum.py
@@ -25,18 +25,53 @@ Usage:
 """
 
 import os
-import subprocess
 import argparse
+import subprocess
 
-# ANSI escape codes for coloring
-COLOR_RESET = "\033[0m"
-COLOR_ERROR = COLOR_RED = "\033[91m"
-COLOR_HEADER = COLOR_GREEN = "\033[92m"
-COLOR_YELLOW = "\033[93m"
-COLOR_FILENAME = COLOR_BLUE = "\033[94m"
-COLOR_MAGENTA = "\033[95m"
-COLOR_CYAN = "\033[96m"
-COLOR_LIGHT_GRAY = "\033[97m"
+# ANSI escape codes
+ANSI_RESET = "\033[0m"
+ANSI_RED = "\033[91m"
+ANSI_GREEN = "\033[92m"
+ANSI_YELLOW = "\033[93m"
+ANSI_BLUE = "\033[94m"
+ANSI_MAGENTA = "\033[95m"
+ANSI_CYAN = "\033[96m"
+ANSI_LIGHT_GRAY = "\033[97m"
+
+ANSI_BOLD = "\033[1m"
+ANSI_BOLD_OFF = "\033[22m"
+ANSI_ITALIC = "\033[3m"
+ANSI_ITALIC_OFF = "\033[23m"
+ANSI_UNDERLINE = "\033[4m"
+ANSI_UNDERLINE_OFF = "\033[24m"
+ANSI_BLINK = "\033[5m"
+ANSI_BLINK_OFF = "\033[25m"
+ANSI_INVERT_COLORS = "\033[7m"
+ANSI_INVERT_COLORS_OFF = "\033[27m"
+
+RESET = ANSI_RESET
+ERROR = ANSI_RED + ANSI_BLINK
+HEADER1 = ANSI_GREEN + ANSI_BOLD + ANSI_UNDERLINE
+HEADER2 = ANSI_MAGENTA + ANSI_UNDERLINE
+FILENAME = ANSI_YELLOW
+FILETYPE = ANSI_ITALIC
+SEPARATOR = ANSI_CYAN
+
+system_cron_paths = [
+    '/etc/cron.d/',
+    '/etc/cron.daily/',
+    '/etc/cron.hourly/',
+    '/etc/cron.monthly/',
+    '/etc/cron.weekly/',
+    '/etc/crontab'
+]
+
+
+def separator(number):
+    if number == 1:
+        print(f"\n{SEPARATOR}{separator1}{RESET}\n")
+    else:
+        print(f"\n{SEPARATOR}{separator2}{RESET}\n")
 
 
 def find_users():
@@ -49,106 +84,92 @@ def find_users():
         users = [line.split(':')[0] for line in open('/etc/passwd')]
         return users
     except Exception as e:
-        print(f"{COLOR_ERROR}Error reading /etc/passwd: {e}{COLOR_RESET}\n")
+        print(f"{ERROR}Error reading /etc/passwd: {e}{RESET}\n")
         exit(1)
 
 
 def print_user_cron_jobs(users):
     """
-    Function to search and list user-level cron jobs
+    Function to search and list user-level cron jobs using crontab
 
     :param users: List of users.
     """
 
     for user in users:
-        print(f"{COLOR_MAGENTA}User: {user}{COLOR_RESET}")
-
-        # Use the 'crontab' command to list the user's cron jobs
         try:
             cron_jobs = subprocess.check_output(
                 ['crontab', '-l', '-u', user], stderr=subprocess.STDOUT, text=True)
             if cron_jobs:
+                separator(1)
+                print(f"{HEADER2}User: {user}{RESET}")
                 print(cron_jobs)
         except subprocess.CalledProcessError as e:
-            if e.returncode == 1:  # No cron jobs for the user
-                print("No cron jobs found for this user.\n")
+            if e.returncode == 1:  # No cron jobs
+                pass
             elif e.returncode == 126:  # Permission denied
                 print(
-                    f"{COLOR_ERROR}Permission denied to retrieve cron jobs for {user}.{COLOR_RESET}\n")
+                    f"{ERROR}Permission denied to retrieve cron jobs for {user}.{RESET}")
             else:
                 print(
-                    f"{COLOR_ERROR}Error retrieving cron jobs for {user}: {e.output}{COLOR_RESET}\n")
+                    f"{ERROR}Error retrieving cron jobs for {user}: {e.output}{RESET}")
         except PermissionError as pe:
-            print(f"{COLOR_ERROR}Permission denied to run 'crontab -l -u {user}'. Please run this script as an administrator (e.g., with sudo).{COLOR_RESET}\n")
-        print(f"{COLOR_YELLOW}{separator1}{COLOR_RESET}\n")
+            print(f"{ERROR}Permission denied to run 'crontab -l -u {user}'. Please run this script as an administrator (e.g., with sudo).{RESET}")
+
+
+def print_with_filetype(filepath):
+    try:
+        result = subprocess.run(['file', filepath], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, check=True)
+        filetype = result.stdout.split(": ")[1].strip()
+        print(
+            f"{FILENAME}File: {filepath}{RESET} ({filetype})\n")
+    except Exception as e:
+        print(
+            f"{FILENAME}File: {filepath}{RESET}")
 
 
 def print_system_cron_jobs():
     """
     Function to search and list system-level cron jobs
     """
-    system_cron_paths = [
-        '/etc/cron.d/',
-        '/etc/cron.daily/',
-        '/etc/cron.hourly/',
-        '/etc/cron.monthly/',
-        '/etc/cron.weekly/',
-        '/etc/crontab'
-    ]
 
     for path in system_cron_paths:
         try:
             if os.path.exists(path):
+                separator(2)
                 if os.path.isdir(path):
-                    print(f"{COLOR_MAGENTA}Cron Jobs in {path}:{COLOR_RESET}\n")
+                    print(f"{HEADER2}Cron Jobs in {path}:{RESET}")
                     for filename in os.listdir(path):
                         filepath = os.path.join(path, filename)
                         if os.path.isfile(filepath):
-                            try:
-                                # Run the 'file' command on the file
-                                result = subprocess.run(
-                                    ['file', filepath], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-                                filetype = result.stdout.split(": ")[1]
-                                print(
-                                    f"{COLOR_FILENAME}File: {path}{filename}{COLOR_RESET} : {filetype}")
-                            except Exception as e:
-                                print(
-                                    f"{COLOR_FILENAME}File: {path}{filename}{COLOR_RESET}\n")
+                            separator(1)
+                            print_with_filetype(filepath)
                             try:
                                 if show_lines > 0:
                                     with open(filepath, 'r') as cron_file:
                                         for i in range(show_lines):
                                             line = cron_file.readline()
-                                            # Stop reading if we reach the end of the file
-                                            if not line:
+                                            if not line:  # EOF
                                                 break
-                                            # Remove newline characters and print each line
                                             print(line.strip())
                                         if cron_file.readline():
                                             print("...")
-                                        print(
-                                            f"{COLOR_YELLOW}\n{separator1}{COLOR_RESET}\n")
                                 elif show_files:
                                     with open(filepath, 'r') as cron_file:
-                                        cron_contents = cron_file.read()
-                                        print(cron_contents)
-                                        print(
-                                            f"{COLOR_YELLOW}{separator1}{COLOR_RESET}\n")
+                                        print(cron_file.read())
                             except Exception as e:
-                                print(f"Error reading {filepath}: {e}\n")
+                                print(f"Error reading {filepath}: {e}")
                 elif os.path.isfile(path):
                     try:
                         with open(path, 'r') as cron_file:
-                            cron_contents = cron_file.read()
                             print(
-                                f"{COLOR_MAGENTA}Cron Jobs in {path}:{COLOR_RESET}\n")
-                            print(cron_contents)
-                            print(f"{COLOR_YELLOW}{separator2}{COLOR_RESET}\n")
+                                f"{HEADER2}Cron Jobs in {path}:{RESET}\n")
+                            print(cron_file.read())
                     except Exception as e:
                         print(
-                            f"{COLOR_ERROR}Error reading {path}: {e}{COLOR_RESET}\n")
+                            f"{ERROR}Error reading {path}: {e}{RESET}")
         except PermissionError as pe:
-            print(f"{COLOR_ERROR}Permission denied to access {path}. Please run this script as an administrator (e.g., with sudo).{COLOR_RESET}\n")
+            print(f"{ERROR}Permission denied to access {path}. Please run this script as an administrator (e.g., with sudo).{RESET}")
 
 
 # Check that the script is run, not just imported
@@ -159,7 +180,7 @@ if __name__ == "__main__":
         print("This script is intended for Linux.")
         exit(1)
 
-    # parse arguments
+    # parse args
     parser = argparse.ArgumentParser(
         description="A tool to enumerate cron jobs")
     parser.add_argument(
@@ -167,8 +188,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l", "--lines", help="The maximum number of lines to show per file. Overrides -f. Default 5.", type=int, nargs='?', const=5, default=-1)
     args = parser.parse_args()
+
     show_lines = args.lines
-    show_files = args.files if show_lines < 1 else False
+    show_files = args.files
+    if args.lines > -1 and args.files:  # both -f and -l, l overrides f
+        show_files = False
+    elif args.lines == -1 and not args.files:  # no arguments, set to 5 as default, looks the best :D
+        show_lines = 5
 
     # init separators according to tty width
     try:
@@ -181,13 +207,15 @@ if __name__ == "__main__":
 
     # get user list
     users = find_users()
-    print("Listing all cron jobs\n")
-    print(f"{COLOR_YELLOW}{separator2}{COLOR_RESET}\n")
+    print("\nListing all cron jobs        (-h for help)")
+    separator(2)
 
     # find users cron jobs
-    print(f"{COLOR_HEADER}User-Level Cron Jobs:{COLOR_RESET}\n")
+    print(f"{HEADER1}User-Level Cron Jobs:{RESET}")
     print_user_cron_jobs(users)
+    separator(2)
 
     # find system cron jobs
-    print(f"{COLOR_HEADER}System-Level Cron Jobs:{COLOR_RESET}\n")
+    print(f"{HEADER1}System-Level Cron Jobs:{RESET}")
     print_system_cron_jobs()
+    separator(2)
