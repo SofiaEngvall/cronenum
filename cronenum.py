@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-A script to enumerate scheduled tasks
+A script to enumerate scheduled tasks on a Linux system
 
 The script goes through cron locations and is meant to be run both
 as a user and an admin. For making sure nothing is run we don't know
@@ -10,6 +10,7 @@ penetration test.
 
 To do:
 - Add more enumeration ways
+- add a switch to inspect a certain directory -d making the script forego it's normal operation and just focus on the dir
 
 Please report errors <3
 
@@ -17,7 +18,7 @@ Author: Sofia Engvall, FixIt42
 Links: https://www.youtube.com/@FixIt42, https://www.twitch.tv/FixIt42
 License: MIT
 Repository: https://github.com/SofiaEngvall/cronenum
-Version: 0.4
+Version: 0.5
 
 Usage:
     python cronenum.py
@@ -58,6 +59,11 @@ HEADER2 = ANSI_MAGENTA + ANSI_UNDERLINE
 FILENAME = ANSI_YELLOW
 FILETYPE = ANSI_ITALIC
 SEPARATOR = ANSI_CYAN
+
+# User cron jobs to search
+user_cron_paths = [
+    '/var/spool/cron/crontabs/'
+]
 
 # System cron paths to search, directories and files
 system_cron_paths = [
@@ -112,13 +118,30 @@ def print_user_cron_jobs(users):
                 pass
             elif e.returncode == 126:  # Permission denied
                 print(
-                    f"{ERROR}Permission denied to retrieve cron jobs for {user}.{RESET}")
+                    f"\n{ERROR}Permission denied to retrieve cron jobs for {user}.{RESET}")
             else:
                 print(
-                    f"{ERROR}Error retrieving cron jobs for {user}: {e.output}{RESET}")
+                    f"\n{ERROR}Error retrieving cron jobs for {user}: {e.output}{RESET}")
         except PermissionError as pe:
             print(
-                f"{ERROR}Permission denied to run 'crontab -l -u {user}'. Please run this script with sudo.{RESET}")
+                f"\n{ERROR}Permission denied to run 'crontab -l -u {user}'. Please run this script with sudo.{RESET}")
+
+
+def print_user_dirs_cron_jobs():
+    """
+    Function to list user-level directory cron jobs
+    """
+    for path in user_cron_paths:
+        try:
+            if os.path.exists(path):
+                separator("=")
+                if os.path.isdir(path):
+                    print_cron_jobs_dir(path)
+                elif os.path.isfile(path):
+                    print_cron_jobs_file(path)
+        except PermissionError as pe:
+            print(
+                f"\n{ERROR}Permission denied to access {path}. Please run this script with sudo.{RESET}")
 
 
 def print_with_filetype(filepath):
@@ -138,49 +161,62 @@ def print_with_filetype(filepath):
             f"{FILENAME}File: {filepath}{RESET}")
 
 
+def print_cron_jobs_dir(path):
+    """
+    Function that prints the files in a cron job directory to screen
+    """
+    print(f"{HEADER2}Cron Jobs in {path}:{RESET}")
+    for filename in os.listdir(path):
+        filepath = os.path.join(path, filename)
+        if os.path.isfile(filepath):
+            separator("-")
+            print_with_filetype(filepath)
+            try:
+                if show_lines > 0:
+                    with open(filepath, 'r') as cron_file:
+                        for i in range(show_lines):
+                            line = cron_file.readline()
+                            if not line:  # EOF
+                                break
+                            print(line.strip())
+                        if cron_file.readline():
+                            print("...")
+                elif show_files:
+                    with open(filepath, 'r') as cron_file:
+                        print(cron_file.read())
+            except Exception as e:
+                print(f"\n{ERROR}Error reading {filepath}: {e}{RESET}")
+
+
+def print_cron_jobs_file(path):
+    """
+    Function that prints a cron job file to screen
+    """
+    try:
+        with open(path, 'r') as cron_file:
+            print(
+                f"{HEADER2}Cron Jobs in {path}:{RESET}\n")
+            print(cron_file.read())
+    except Exception as e:
+        print(
+            f"\n{ERROR}Error reading {path}: {e}{RESET}")
+
+
 def print_system_cron_jobs():
     """
     Function to list system-level cron jobs
     """
-
     for path in system_cron_paths:
         try:
             if os.path.exists(path):
                 separator("=")
                 if os.path.isdir(path):
-                    print(f"{HEADER2}Cron Jobs in {path}:{RESET}")
-                    for filename in os.listdir(path):
-                        filepath = os.path.join(path, filename)
-                        if os.path.isfile(filepath):
-                            separator("-")
-                            print_with_filetype(filepath)
-                            try:
-                                if show_lines > 0:
-                                    with open(filepath, 'r') as cron_file:
-                                        for i in range(show_lines):
-                                            line = cron_file.readline()
-                                            if not line:  # EOF
-                                                break
-                                            print(line.strip())
-                                        if cron_file.readline():
-                                            print("...")
-                                elif show_files:
-                                    with open(filepath, 'r') as cron_file:
-                                        print(cron_file.read())
-                            except Exception as e:
-                                print(f"Error reading {filepath}: {e}")
+                    print_cron_jobs_dir(path)
                 elif os.path.isfile(path):
-                    try:
-                        with open(path, 'r') as cron_file:
-                            print(
-                                f"{HEADER2}Cron Jobs in {path}:{RESET}\n")
-                            print(cron_file.read())
-                    except Exception as e:
-                        print(
-                            f"{ERROR}Error reading {path}: {e}{RESET}")
+                    print_cron_jobs_file(path)
         except PermissionError as pe:
             print(
-                f"{ERROR}Permission denied to access {path}. Please run this script with sudo.{RESET}")
+                f"\n{ERROR}Permission denied to access {path}. Please run this script with sudo.{RESET}")
 
 
 # Check that the script is run, not just imported
@@ -222,6 +258,7 @@ if __name__ == "__main__":
     # find users cron jobs
     print(f"{HEADER1}User-Level Cron Jobs:{RESET}")
     print_user_cron_jobs(users)
+    print_user_dirs_cron_jobs()
     separator("=")
 
     # find system cron jobs
